@@ -1,24 +1,54 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { AnimatePresence } from "framer-motion";
+import { GameMenu, type Mode } from "@/components/game/GameMenu";
+import { PreGameLobby, type PreGameConfig } from "@/components/game/PreGameLobby";
+import { GameScreen } from "@/components/game/GameScreen";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
+type Screen =
+  | { name: "menu" }
+  | { name: "lobby"; mode: Mode }
+  | { name: "game"; mode: Mode; config: PreGameConfig };
+
 function Index() {
+  const [screen, setScreen] = useState<Screen>({ name: "menu" });
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <main className="min-h-dvh w-full grid place-items-center px-4 py-8 sm:py-12">
+      <AnimatePresence mode="wait">
+        {screen.name === "menu" && (
+          <div key="menu" className="w-full flex justify-center">
+            <GameMenu
+              onSelect={(m) => {
+                if (m === "local") setScreen({ name: "game", mode: "local", config: { token: "X" } });
+                else setScreen({ name: "lobby", mode: m });
+              }}
+            />
+          </div>
+        )}
+        {screen.name === "lobby" && (
+          <div key={`lobby-${screen.mode}`} className="w-full flex justify-center">
+            <PreGameLobby
+              mode={screen.mode}
+              onBack={() => setScreen({ name: "menu" })}
+              onStart={(config) => setScreen({ name: "game", mode: screen.mode, config })}
+            />
+          </div>
+        )}
+        {screen.name === "game" && (
+          <div key={`game-${screen.mode}`} className="w-full flex justify-center">
+            <GameScreen
+              mode={screen.mode}
+              config={screen.config}
+              onExit={() => setScreen({ name: "menu" })}
+            />
+          </div>
+        )}
+      </AnimatePresence>
+    </main>
   );
 }
