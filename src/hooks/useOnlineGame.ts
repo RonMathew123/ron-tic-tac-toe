@@ -95,7 +95,7 @@ export function useOnlineGame(opts: Options) {
           setMyToken(missing);
           setGame(updated as GameRow);
           gameIdRef.current = updated.id;
-          statusRef.current = updated.status;
+          statusRef.current = updated.status as GameRow["status"];
         } else if (opts.kind === "host") {
           const token = pickToken(opts.preferredToken);
           const code = makeRoomCode();
@@ -113,7 +113,7 @@ export function useOnlineGame(opts: Options) {
           setMyToken(token);
           setGame(data as GameRow);
           gameIdRef.current = data.id;
-          statusRef.current = data.status;
+          statusRef.current = data.status as GameRow["status"];
         } else {
           // random matchmaking
           let joined = await tryJoinRandom(playerId.current);
@@ -126,7 +126,7 @@ export function useOnlineGame(opts: Options) {
           if (joined) {
             setGame(joined);
             gameIdRef.current = joined.id;
-            statusRef.current = joined.status;
+            statusRef.current = joined.status as GameRow["status"];
           } else {
             const token = pickToken(opts.preferredToken);
             const row = {
@@ -142,7 +142,7 @@ export function useOnlineGame(opts: Options) {
             setMyToken(token);
             setGame(data as GameRow);
             gameIdRef.current = data.id;
-            statusRef.current = data.status;
+            statusRef.current = data.status as GameRow["status"];
           }
         }
       } catch (e: any) {
