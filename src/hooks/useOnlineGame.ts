@@ -31,9 +31,47 @@ export function useOnlineGame(opts: Options) {
   const [myToken, setMyToken] = useState<Player | null>(null);
   const playerId = useRef<string>("");
   const gameIdRef = useRef<string | null>(null);
+  const createdByMeRef = useRef<boolean>(false);
+  const statusRef = useRef<GameRow["status"] | null>(null);
+  const didInit = useRef(false);
+
+  // Try to claim an existing waiting random game. Returns the joined row or null
+  // if none was available / all candidates were claimed by others first.
+  async function tryJoinRandom(pid: string): Promise<GameRow | null> {
+    // A joinable random game must have exactly one empty slot. `neq` on a NULL
+    // column filters the row out, so instead ask for "one slot is null".
+    const { data: waiting, error: sErr } = await supabase
+      .from("games").select("*")
+      .eq("mode", "random").eq("status", "waiting")
+      .or("player_x.is.null,player_o.is.null")
+      .order("created_at", { ascending: true }).limit(5);
+    if (sErr) throw sErr;
+    for (const raw of waiting ?? []) {
+      const g = raw as GameRow;
+      // Skip a stale row I created myself.
+      if (g.player_x === pid || g.player_o === pid) continue;
+      const missing: Player = g.player_x ? "O" : "X";
+      // Guard the update on the slot still being empty so the loser of a race
+      // gets 0 rows back instead of tripping the DB guard.
+      const patch = missing === "X"
+        ? { player_x: pid, status: "active" as const }
+        : { player_o: pid, status: "active" as const };
+      const q = supabase.from("games").update(patch).eq("id", g.id).eq("status", "waiting");
+      const scoped = missing === "X" ? q.is("player_x", null) : q.is("player_o", null);
+      const { data: updated, error: uErr } = await scoped.select().maybeSingle();
+      if (uErr) continue; // race lost or guard fired — try the next candidate
+      if (updated) {
+        setMyToken(missing);
+        return updated as GameRow;
+      }
+    }
+    return null;
+  }
 
   // init
   useEffect(() => {
+    if (didInit.current) return;
+    didInit.current = true;
     playerId.current = getPlayerId();
     let cancelled = false;
     (async () => {
@@ -48,13 +86,16 @@ export function useOnlineGame(opts: Options) {
           const patch = missing === "X"
             ? { player_x: playerId.current, status: "active" as const }
             : { player_o: playerId.current, status: "active" as const };
-          const { data: updated, error: uErr } = await supabase
-            .from("games").update(patch).eq("id", data.id).select().single();
+          const q = supabase.from("games").update(patch).eq("id", data.id).eq("status", "waiting");
+          const scoped = missing === "X" ? q.is("player_x", null) : q.is("player_o", null);
+          const { data: updated, error: uErr } = await scoped.select().maybeSingle();
           if (uErr) throw uErr;
+          if (!updated) { setError("Room was just taken"); return; }
           if (cancelled) return;
           setMyToken(missing);
           setGame(updated as GameRow);
           gameIdRef.current = updated.id;
+          statusRef.current = updated.status as GameRow["status"];
         } else if (opts.kind === "host") {
           const token = pickToken(opts.preferredToken);
           const code = makeRoomCode();
@@ -68,29 +109,24 @@ export function useOnlineGame(opts: Options) {
           const { data, error } = await supabase.from("games").insert(row).select().single();
           if (error) throw error;
           if (cancelled) return;
+          createdByMeRef.current = true;
           setMyToken(token);
           setGame(data as GameRow);
           gameIdRef.current = data.id;
+          statusRef.current = data.status as GameRow["status"];
         } else {
-          // random matchmaking: try to find a waiting random game we're not in
-          const { data: waiting } = await supabase
-            .from("games").select("*")
-            .eq("mode", "random").eq("status", "waiting")
-            .neq("player_x", playerId.current).neq("player_o", playerId.current)
-            .order("created_at", { ascending: true }).limit(1);
-          if (waiting && waiting.length > 0) {
-            const g = waiting[0] as GameRow;
-            const missing: Player = g.player_x ? "O" : "X";
-            const patch = missing === "X"
-              ? { player_x: playerId.current, status: "active" as const }
-              : { player_o: playerId.current, status: "active" as const };
-            const { data: updated, error: uErr } = await supabase
-              .from("games").update(patch).eq("id", g.id).eq("status","waiting").select().single();
-            if (uErr) throw uErr;
-            if (cancelled) return;
-            setMyToken(missing);
-            setGame(updated as GameRow);
-            gameIdRef.current = updated.id;
+          // random matchmaking
+          let joined = await tryJoinRandom(playerId.current);
+          if (!joined) {
+            // brief retry to reduce the "two clicks at once" collision
+            await new Promise((r) => setTimeout(r, 250));
+            joined = await tryJoinRandom(playerId.current);
+          }
+          if (cancelled) return;
+          if (joined) {
+            setGame(joined);
+            gameIdRef.current = joined.id;
+            statusRef.current = joined.status as GameRow["status"];
           } else {
             const token = pickToken(opts.preferredToken);
             const row = {
@@ -102,9 +138,11 @@ export function useOnlineGame(opts: Options) {
             const { data, error } = await supabase.from("games").insert(row).select().single();
             if (error) throw error;
             if (cancelled) return;
+            createdByMeRef.current = true;
             setMyToken(token);
             setGame(data as GameRow);
             gameIdRef.current = data.id;
+            statusRef.current = data.status as GameRow["status"];
           }
         }
       } catch (e: any) {
@@ -114,6 +152,28 @@ export function useOnlineGame(opts: Options) {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // keep status ref in sync for the unmount cleanup
+  useEffect(() => { statusRef.current = game?.status ?? null; }, [game?.status]);
+
+  // If I created a waiting room and then navigate away, mark it aborted so it
+  // doesn't linger in matchmaking.
+  useEffect(() => {
+    const cleanupWaiting = () => {
+      const id = gameIdRef.current;
+      if (!id) return;
+      if (!createdByMeRef.current) return;
+      if (statusRef.current !== "waiting") return;
+      // fire-and-forget
+      void supabase.from("games").update({ status: "aborted" }).eq("id", id).eq("status", "waiting");
+    };
+    window.addEventListener("beforeunload", cleanupWaiting);
+    return () => {
+      window.removeEventListener("beforeunload", cleanupWaiting);
+      cleanupWaiting();
+    };
+  }, []);
+
 
   // realtime subscription
   useEffect(() => {
