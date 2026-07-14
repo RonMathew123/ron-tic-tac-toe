@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Grid } from "./Grid";
 import { NeonButton } from "./NeonButton";
@@ -112,9 +112,10 @@ function LocalGame({ onExit }: Props) {
 
 /* -------- BOT -------- */
 function BotGame({ config, onExit }: Props) {
-  const human: Player = config.token === "random"
-    ? (Math.random() < 0.5 ? "X" : "O")
-    : (config.token as Player);
+  const human: Player = useMemo(
+    () => (config.token === "random" ? (Math.random() < 0.5 ? "X" : "O") : (config.token as Player)),
+    [config.token]
+  );
   const bot: Player = human === "X" ? "O" : "X";
   const diff: Difficulty = config.difficulty ?? "intermediate";
 

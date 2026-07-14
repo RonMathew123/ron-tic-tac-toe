@@ -40,26 +40,28 @@ export function PreGameLobby({ mode, onStart, onBack }: Props) {
       <h2 className="text-2xl font-display uppercase tracking-widest neon-text-cyan mb-6">{title}</h2>
 
       <div className="space-y-6">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Your Token</p>
-          <div className="grid grid-cols-3 gap-2">
-            {(["X", "O", "random"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setToken(t)}
-                className={`py-3 rounded-lg font-display text-xl transition-all ${
-                  token === t
-                    ? t === "X" ? "neon-border-cyan neon-text-cyan"
-                      : t === "O" ? "neon-border-magenta neon-text-magenta"
-                      : "neon-border-cyan neon-text-cyan"
-                    : "border border-border/40 text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {t === "random" ? "?" : t}
-              </button>
-            ))}
+        {!(mode === "private" && action === "join") && (
+          <div>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Your Token</p>
+            <div className="grid grid-cols-3 gap-2">
+              {(["X", "O", "random"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setToken(t)}
+                  className={`py-3 rounded-lg font-display text-xl transition-all ${
+                    token === t
+                      ? t === "X" ? "neon-border-cyan neon-text-cyan"
+                        : t === "O" ? "neon-border-magenta neon-text-magenta"
+                        : "neon-border-cyan neon-text-cyan"
+                      : "border border-border/40 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {t === "random" ? "?" : t}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {mode === "bot" && (
           <div>
