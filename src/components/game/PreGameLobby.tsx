@@ -40,7 +40,7 @@ export function PreGameLobby({ mode, onStart, onBack }: Props) {
       <h2 className="text-2xl font-display uppercase tracking-widest neon-text-cyan mb-6">{title}</h2>
 
       <div className="space-y-6">
-        {mode !== "random" && !(mode === "private" && action === "join") && (
+        {!(mode === "private" && action === "join") && (
           <div>
             <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Your Token</p>
             <div className="grid grid-cols-3 gap-2">
