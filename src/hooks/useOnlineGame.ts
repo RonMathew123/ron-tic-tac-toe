@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getPlayerId } from "@/lib/player-id";
+import { ensurePlayerId } from "@/lib/player-id";
 import { makeRoomCode, type Board, type Player } from "@/lib/game-logic";
 
 export interface GameRow {
@@ -72,10 +72,10 @@ export function useOnlineGame(opts: Options) {
   useEffect(() => {
     if (didInit.current) return;
     didInit.current = true;
-    playerId.current = getPlayerId();
     let cancelled = false;
     (async () => {
       try {
+        playerId.current = await ensurePlayerId();
         if (opts.kind === "join") {
           const { data, error } = await supabase
             .from("games").select("*").eq("room_code", opts.code).limit(1).maybeSingle();
