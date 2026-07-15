@@ -176,7 +176,12 @@ function BotGame({ config, onExit }: Props) {
 }
 
 /* -------- ONLINE -------- */
-function OnlineGame({ mode, config, onExit }: Props) {
+function OnlineGame(props: Props) {
+  const [rematchKey, setRematchKey] = useState(0);
+  return <OnlineGameInner key={rematchKey} {...props} onReplay={() => setRematchKey((k) => k + 1)} />;
+}
+
+function OnlineGameInner({ mode, config, onExit, onReplay }: Props & { onReplay: () => void }) {
   const kind = mode === "random" ? "random" : config.action === "join" ? "join" : "host";
   const { game, myToken, error, play, abort } = useOnlineGame(
     kind === "join"
