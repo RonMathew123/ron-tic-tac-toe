@@ -75,6 +75,7 @@ export function useOnlineGame(opts: Options) {
     let cancelled = false;
     (async () => {
       try {
+        playerId.current = await ensurePlayerId();
         if (opts.kind === "join") {
           const { data, error } = await supabase
             .from("games").select("*").eq("room_code", opts.code).limit(1).maybeSingle();
