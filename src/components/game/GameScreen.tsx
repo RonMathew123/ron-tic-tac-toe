@@ -278,6 +278,7 @@ function OnlineGameInner({ mode, config, onExit, onReplay }: Props & { onReplay:
               text={won ? "Victory" : lost ? "Defeat" : drawn ? "Draw" : "Match Over"}
               tone={won ? (myToken === "X" ? "cyan" : "magenta") : lost ? "magenta" : "muted"}
               onExit={onExit}
+              onReplay={onReplay}
             />
           )}
         </AnimatePresence>
