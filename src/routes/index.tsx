@@ -18,8 +18,10 @@ type Screen =
 function Index() {
   const [screen, setScreen] = useState<Screen>({ name: "menu" });
 
+  const [showAbout, setShowAbout] = useState(false);
+
   return (
-    <main className="min-h-dvh w-full grid place-items-center px-4 py-8 sm:py-12">
+    <main className="min-h-dvh w-full grid place-items-center px-4 py-8 sm:py-12 relative">
       <AnimatePresence mode="wait">
         {screen.name === "menu" && (
           <div key="menu" className="w-full flex justify-center">
@@ -50,6 +52,28 @@ function Index() {
           </div>
         )}
       </AnimatePresence>
+
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+        <AnimatePresence>
+          {showAbout && (
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.95 }}
+              className="glass-panel rounded-lg px-4 py-3 text-sm font-medium text-foreground shadow-lg"
+            >
+              Created by Ron Mathew
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <button
+          onClick={() => setShowAbout((s) => !s)}
+          aria-label="About"
+          className="flex items-center justify-center w-10 h-10 rounded-full glass-panel text-foreground hover:text-neon-cyan transition-colors"
+        >
+          <Info className="w-5 h-5" />
+        </button>
+      </div>
     </main>
   );
 }
