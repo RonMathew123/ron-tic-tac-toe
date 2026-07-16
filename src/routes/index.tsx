@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { GameMenu, type Mode } from "@/components/game/GameMenu";
 import { PreGameLobby, type PreGameConfig } from "@/components/game/PreGameLobby";
 import { GameScreen } from "@/components/game/GameScreen";
+import { Info } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Index,
