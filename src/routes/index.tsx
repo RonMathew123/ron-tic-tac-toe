@@ -53,7 +53,11 @@ function Index() {
         )}
       </AnimatePresence>
 
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+      <div
+        className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2"
+        onMouseEnter={() => setShowAbout(true)}
+        onMouseLeave={() => setShowAbout(false)}
+      >
         <AnimatePresence>
           {showAbout && (
             <motion.div
@@ -67,7 +71,6 @@ function Index() {
           )}
         </AnimatePresence>
         <button
-          onClick={() => setShowAbout((s) => !s)}
           aria-label="About"
           className="flex items-center justify-center w-10 h-10 rounded-full glass-panel text-foreground hover:text-neon-cyan transition-colors"
         >
