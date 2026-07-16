@@ -8,6 +8,41 @@ import { Info } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Index,
+  head: () => ({
+    meta: [
+      { property: "og:url", content: "https://ron-tic-tac-toe.lovable.app/" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a639420f-92d1-4ead-9b19-55b9ccfd0234/id-preview-29f1d69a--b1f89d8e-a76e-486a-88f1-1b7802d45301.lovable.app-1784011145592.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a639420f-92d1-4ead-9b19-55b9ccfd0234/id-preview-29f1d69a--b1f89d8e-a76e-486a-88f1-1b7802d45301.lovable.app-1784011145592.png" },
+    ],
+    links: [{ rel: "canonical", href: "https://ron-tic-tac-toe.lovable.app/" }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "Ron-Tic-Tac-Toe",
+          url: "https://ron-tic-tac-toe.lovable.app/",
+          description: "A neon cyberpunk Tic-Tac-Toe with local, bot, and real-time online multiplayer.",
+        }),
+      },
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "VideoGame",
+          name: "Ron-Tic-Tac-Toe",
+          url: "https://ron-tic-tac-toe.lovable.app/",
+          description: "A neon cyberpunk Tic-Tac-Toe with local, bot, and real-time online multiplayer.",
+          genre: "Strategy Game",
+          gamePlatform: "Web Browser",
+          applicationCategory: "Game",
+          operatingSystem: "Any",
+          author: { "@type": "Person", name: "Ron Mathew" },
+        }),
+      },
+    ],
+  }),
 });
 
 type Screen =
