@@ -1,9 +1,0 @@
-# Ron-Tic-Tac-Toe
-
-> A neon cyberpunk Tic-Tac-Toe with local, bot, and real-time online multiplayer.
-
-Ron-Tic-Tac-Toe is a browser-based Tic-Tac-Toe game with a neon cyberpunk aesthetic. Play locally on one device, against a bot, or online in real time with a friend via private room codes or random matchmaking.
-
-## Pages
-
-- [Home](/): Start a local, bot, or online multiplayer game.
