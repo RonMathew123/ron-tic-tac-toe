@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ron-tic-tac-toe.lovable.app/sitemap.xml
