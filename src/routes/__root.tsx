@@ -87,6 +87,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:description", content: "A neon cyberpunk Tic-Tac-Toe with local, bot, and real-time online multiplayer." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a639420f-92d1-4ead-9b19-55b9ccfd0234/id-preview-29f1d69a--b1f89d8e-a76e-486a-88f1-1b7802d45301.lovable.app-1784011145592.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a639420f-92d1-4ead-9b19-55b9ccfd0234/id-preview-29f1d69a--b1f89d8e-a76e-486a-88f1-1b7802d45301.lovable.app-1784011145592.png" },
+      { name: "google-site-verification", content: "RTs9Hn-eg2OXPPxO7odKbnQwIQP6B6jle_Cz-wCSN68" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
