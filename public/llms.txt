@@ -1,0 +1,7 @@
+# Ron-Tic-Tac-Toe
+
+> A neon cyberpunk Tic-Tac-Toe with local 1v1, single-player vs bot (Easy, Intermediate, Impossible), and real-time online multiplayer (random match or private rooms).
+
+## Pages
+
+- [Home](/): Main menu to pick a game mode and start playing.
