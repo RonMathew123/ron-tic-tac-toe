@@ -8,6 +8,9 @@ import { Info } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Index,
+  head: () => ({
+    links: [{ rel: "canonical", href: "https://ron-tic-tac-toe.lovable.app/" }],
+  }),
 });
 
 type Screen =
