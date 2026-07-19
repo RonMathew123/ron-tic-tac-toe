@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { ensurePlayerId } from "@/lib/player-id";
 import { makeRoomCode, type Board, type Player } from "@/lib/game-logic";
@@ -18,7 +19,8 @@ export interface GameRow {
 type Options =
   | { kind: "random"; preferredToken: "X" | "O" | "random" }
   | { kind: "host"; preferredToken: "X" | "O" | "random" }
-  | { kind: "join"; code: string; preferredToken: "X" | "O" | "random" };
+  | { kind: "join"; code: string; preferredToken: "X" | "O" | "random" }
+  | { kind: "rejoin"; gameId: string; asToken: Player };
 
 function pickToken(pref: "X" | "O" | "random"): "X" | "O" {
   if (pref === "random") return Math.random() < 0.5 ? "X" : "O";
@@ -29,17 +31,17 @@ export function useOnlineGame(opts: Options) {
   const [game, setGame] = useState<GameRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [myToken, setMyToken] = useState<Player | null>(null);
+  const [rematch, setRematch] = useState<{ iWant: boolean; theyWant: boolean }>({ iWant: false, theyWant: false });
+  const [nextGameId, setNextGameId] = useState<string | null>(null);
   const playerId = useRef<string>("");
   const gameIdRef = useRef<string | null>(null);
   const createdByMeRef = useRef<boolean>(false);
   const statusRef = useRef<GameRow["status"] | null>(null);
   const didInit = useRef(false);
+  const rematchChannelRef = useRef<RealtimeChannel | null>(null);
+  const createdRematchRef = useRef(false);
 
-  // Try to claim an existing waiting random game. Returns the joined row or null
-  // if none was available / all candidates were claimed by others first.
   async function tryJoinRandom(pid: string): Promise<GameRow | null> {
-    // A joinable random game must have exactly one empty slot. `neq` on a NULL
-    // column filters the row out, so instead ask for "one slot is null".
     const { data: waiting, error: sErr } = await supabase
       .from("games").select("*")
       .eq("mode", "random").eq("status", "waiting")
@@ -48,18 +50,15 @@ export function useOnlineGame(opts: Options) {
     if (sErr) throw sErr;
     for (const raw of waiting ?? []) {
       const g = raw as GameRow;
-      // Skip a stale row I created myself.
       if (g.player_x === pid || g.player_o === pid) continue;
       const missing: Player = g.player_x ? "O" : "X";
-      // Guard the update on the slot still being empty so the loser of a race
-      // gets 0 rows back instead of tripping the DB guard.
       const patch = missing === "X"
         ? { player_x: pid, status: "active" as const }
         : { player_o: pid, status: "active" as const };
       const q = supabase.from("games").update(patch).eq("id", g.id).eq("status", "waiting");
       const scoped = missing === "X" ? q.is("player_x", null) : q.is("player_o", null);
       const { data: updated, error: uErr } = await scoped.select().maybeSingle();
-      if (uErr) continue; // race lost or guard fired — try the next candidate
+      if (uErr) continue;
       if (updated) {
         setMyToken(missing);
         return updated as GameRow;
@@ -68,7 +67,6 @@ export function useOnlineGame(opts: Options) {
     return null;
   }
 
-  // init
   useEffect(() => {
     if (didInit.current) return;
     didInit.current = true;
@@ -96,6 +94,32 @@ export function useOnlineGame(opts: Options) {
           setGame(updated as GameRow);
           gameIdRef.current = updated.id;
           statusRef.current = updated.status as GameRow["status"];
+        } else if (opts.kind === "rejoin") {
+          // Load an existing game (used for rematches). If we're the joiner
+          // (asToken='O'), claim the empty seat and activate.
+          const { data, error } = await supabase
+            .from("games").select("*").eq("id", opts.gameId).maybeSingle();
+          if (error) throw error;
+          if (!data) { setError("Rematch game missing"); return; }
+          let row = data as GameRow;
+          const alreadySeated =
+            (opts.asToken === "X" && row.player_x === playerId.current) ||
+            (opts.asToken === "O" && row.player_o === playerId.current);
+          if (!alreadySeated && row.status === "waiting") {
+            const patch = opts.asToken === "X"
+              ? { player_x: playerId.current, status: "active" as const }
+              : { player_o: playerId.current, status: "active" as const };
+            const q = supabase.from("games").update(patch).eq("id", row.id).eq("status", "waiting");
+            const scoped = opts.asToken === "X" ? q.is("player_x", null) : q.is("player_o", null);
+            const { data: updated, error: uErr } = await scoped.select().maybeSingle();
+            if (uErr) throw uErr;
+            if (updated) row = updated as GameRow;
+          }
+          if (cancelled) return;
+          setMyToken(opts.asToken);
+          setGame(row);
+          gameIdRef.current = row.id;
+          statusRef.current = row.status;
         } else if (opts.kind === "host") {
           const token = pickToken(opts.preferredToken);
           const code = makeRoomCode();
@@ -115,10 +139,8 @@ export function useOnlineGame(opts: Options) {
           gameIdRef.current = data.id;
           statusRef.current = data.status as GameRow["status"];
         } else {
-          // random matchmaking
           let joined = await tryJoinRandom(playerId.current);
           if (!joined) {
-            // brief retry to reduce the "two clicks at once" collision
             await new Promise((r) => setTimeout(r, 250));
             joined = await tryJoinRandom(playerId.current);
           }
@@ -153,18 +175,14 @@ export function useOnlineGame(opts: Options) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // keep status ref in sync for the unmount cleanup
   useEffect(() => { statusRef.current = game?.status ?? null; }, [game?.status]);
 
-  // If I created a waiting room and then navigate away, mark it aborted so it
-  // doesn't linger in matchmaking.
   useEffect(() => {
     const cleanupWaiting = () => {
       const id = gameIdRef.current;
       if (!id) return;
       if (!createdByMeRef.current) return;
       if (statusRef.current !== "waiting") return;
-      // fire-and-forget
       void supabase.from("games").update({ status: "aborted" }).eq("id", id).eq("status", "waiting");
     };
     window.addEventListener("beforeunload", cleanupWaiting);
@@ -174,8 +192,7 @@ export function useOnlineGame(opts: Options) {
     };
   }, []);
 
-
-  // realtime subscription
+  // Realtime game row subscription
   useEffect(() => {
     if (!game?.id) return;
     const channel = supabase
@@ -187,6 +204,58 @@ export function useOnlineGame(opts: Options) {
     return () => { supabase.removeChannel(channel); };
   }, [game?.id]);
 
+  // Rematch broadcast channel — only active while the match is finished.
+  useEffect(() => {
+    if (!game?.id || game.status !== "finished" || !myToken) return;
+    createdRematchRef.current = false;
+    setRematch({ iWant: false, theyWant: false });
+    setNextGameId(null);
+    const ch = supabase.channel(`rematch:${game.id}`, { config: { broadcast: { self: false } } });
+    ch.on("broadcast", { event: "want" }, ({ payload }) => {
+      if (payload?.token && payload.token !== myToken) {
+        setRematch((s) => ({ ...s, theyWant: true }));
+      }
+    });
+    ch.on("broadcast", { event: "newGame" }, ({ payload }) => {
+      if (payload?.id) setNextGameId(payload.id as string);
+    });
+    ch.subscribe();
+    rematchChannelRef.current = ch;
+    return () => {
+      supabase.removeChannel(ch);
+      rematchChannelRef.current = null;
+    };
+  }, [game?.id, game?.status, myToken]);
+
+  // When both players want a rematch, X provisions the new game and broadcasts it.
+  useEffect(() => {
+    if (!game || game.status !== "finished") return;
+    if (!rematch.iWant || !rematch.theyWant) return;
+    if (myToken !== "X") return;
+    if (nextGameId || createdRematchRef.current) return;
+    createdRematchRef.current = true;
+    (async () => {
+      try {
+        const code = makeRoomCode();
+        const { data, error } = await supabase.from("games").insert({
+          mode: "private" as const,
+          room_code: code,
+          player_x: playerId.current,
+          player_o: null,
+          status: "waiting" as const,
+        }).select().single();
+        if (error || !data) { createdRematchRef.current = false; return; }
+        setNextGameId(data.id);
+        await rematchChannelRef.current?.send({
+          type: "broadcast", event: "newGame",
+          payload: { id: data.id, code: data.room_code },
+        });
+      } catch {
+        createdRematchRef.current = false;
+      }
+    })();
+  }, [rematch, myToken, nextGameId, game]);
+
   const play = useCallback(async (index: number) => {
     const g = game;
     if (!g || !myToken) return;
@@ -195,7 +264,6 @@ export function useOnlineGame(opts: Options) {
     if (g.board[index]) return;
     const newBoard = g.board.slice();
     newBoard[index] = myToken;
-    // check outcome client side
     const { getWinner, isDraw } = await import("@/lib/game-logic");
     const w = getWinner(newBoard);
     const draw = !w && isDraw(newBoard);
@@ -205,7 +273,7 @@ export function useOnlineGame(opts: Options) {
       status: w || draw ? "finished" : "active",
       winner: w ?? (draw ? "draw" : null),
     };
-    setGame({ ...g, ...patch } as GameRow); // optimistic
+    setGame({ ...g, ...patch } as GameRow);
     await supabase.from("games").update(patch).eq("id", g.id);
   }, [game, myToken]);
 
@@ -215,5 +283,18 @@ export function useOnlineGame(opts: Options) {
     await supabase.from("games").update({ status: "aborted" }).eq("id", id);
   }, []);
 
-  return { game, myToken, error, play, abort, playerId: playerId.current };
+  const requestRematch = useCallback(async () => {
+    if (!game || !myToken || game.status !== "finished") return;
+    if (rematch.iWant) return;
+    setRematch((s) => ({ ...s, iWant: true }));
+    await rematchChannelRef.current?.send({
+      type: "broadcast", event: "want", payload: { token: myToken },
+    });
+  }, [game, myToken, rematch.iWant]);
+
+  return {
+    game, myToken, error, play, abort,
+    requestRematch, rematch, nextGameId,
+    playerId: playerId.current,
+  };
 }
