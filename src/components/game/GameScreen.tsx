@@ -32,7 +32,35 @@ function StatusBar({ text, tone = "cyan" }: { text: string; tone?: "cyan" | "mag
   );
 }
 
-function ResultOverlay({ text, tone, onExit, onReplay }: { text: string; tone: "cyan"|"magenta"|"muted"; onExit: () => void; onReplay?: () => void }) {
+function ResultOverlay({
+  text, tone, onExit, onReplay, rematchState,
+}: {
+  text: string;
+  tone: "cyan"|"magenta"|"muted";
+  onExit: () => void;
+  onReplay?: () => void;
+  rematchState?: { iWant: boolean; theyWant: boolean; pending?: boolean };
+}) {
+  const rs = rematchState;
+  let replayLabel = "Play Again";
+  let replayVariant: "cyan" | "magenta" | "ghost" = "cyan";
+  let replayDisabled = false;
+  let replayPulse = false;
+  if (rs) {
+    if (rs.iWant && !rs.theyWant) {
+      replayLabel = "Waiting for opponent…";
+      replayDisabled = true;
+      replayVariant = "ghost";
+    } else if (!rs.iWant && rs.theyWant) {
+      replayLabel = "Opponent wants a rematch — Play Again";
+      replayVariant = "magenta";
+      replayPulse = true;
+    } else if (rs.iWant && rs.theyWant) {
+      replayLabel = rs.pending ? "Starting rematch…" : "Play Again";
+      replayDisabled = true;
+      replayVariant = "ghost";
+    }
+  }
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -47,7 +75,16 @@ function ResultOverlay({ text, tone, onExit, onReplay }: { text: string; tone: "
           }`}
         >{text}</motion.h3>
         <div className="flex flex-wrap justify-center gap-3">
-          {onReplay && <NeonButton variant="cyan" onClick={onReplay}>Play Again</NeonButton>}
+          {onReplay && (
+            <motion.div
+              animate={replayPulse ? { scale: [1, 1.05, 1] } : { scale: 1 }}
+              transition={replayPulse ? { duration: 1.2, repeat: Infinity } : {}}
+            >
+              <NeonButton variant={replayVariant} onClick={onReplay} disabled={replayDisabled}>
+                {replayLabel}
+              </NeonButton>
+            </motion.div>
+          )}
           <NeonButton variant="ghost" onClick={onExit}>Main Menu</NeonButton>
         </div>
       </div>
