@@ -213,19 +213,50 @@ function BotGame({ config, onExit }: Props) {
 }
 
 /* -------- ONLINE -------- */
+type Session =
+  | { mode: "initial" }
+  | { mode: "rejoin"; gameId: string; asToken: "X" | "O" };
+
 function OnlineGame(props: Props) {
-  const [rematchKey, setRematchKey] = useState(0);
-  return <OnlineGameInner key={rematchKey} {...props} onReplay={() => setRematchKey((k) => k + 1)} />;
+  const [session, setSession] = useState<Session>({ mode: "initial" });
+  const [sessionKey, setSessionKey] = useState(0);
+  const handleRematch = (gameId: string, asToken: "X" | "O") => {
+    setSession({ mode: "rejoin", gameId, asToken });
+    setSessionKey((k) => k + 1);
+  };
+  return (
+    <OnlineGameInner
+      key={sessionKey}
+      {...props}
+      session={session}
+      onRematch={handleRematch}
+    />
+  );
 }
 
-function OnlineGameInner({ mode, config, onExit, onReplay }: Props & { onReplay: () => void }) {
-  const kind = mode === "random" ? "random" : config.action === "join" ? "join" : "host";
-  const { game, myToken, error, play, abort } = useOnlineGame(
-    kind === "join"
-      ? { kind: "join", code: config.code ?? "", preferredToken: config.token }
-      : { kind: kind as "random"|"host", preferredToken: config.token }
-  );
+function OnlineGameInner({
+  mode, config, onExit, session, onRematch,
+}: Props & {
+  session: Session;
+  onRematch: (gameId: string, asToken: "X" | "O") => void;
+}) {
+  const hookOpts = session.mode === "rejoin"
+    ? { kind: "rejoin" as const, gameId: session.gameId, asToken: session.asToken }
+    : mode === "random"
+      ? { kind: "random" as const, preferredToken: config.token }
+      : config.action === "join"
+        ? { kind: "join" as const, code: config.code ?? "", preferredToken: config.token }
+        : { kind: "host" as const, preferredToken: config.token };
+
+  const { game, myToken, error, play, abort, requestRematch, rematch, nextGameId } =
+    useOnlineGame(hookOpts);
   const [copied, setCopied] = useState(false);
+
+  // When the hook reports a rematch game id, swap this session over to it.
+  useEffect(() => {
+    if (nextGameId && myToken) onRematch(nextGameId, myToken);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextGameId, myToken]);
 
   const doAbort = async () => { await abort(); onExit(); };
 
@@ -251,10 +282,13 @@ function OnlineGameInner({ mode, config, onExit, onReplay }: Props & { onReplay:
   }
 
   if (game.status === "waiting") {
+    // For rematch sessions, X has already created the new game and is waiting
+    // for O to auto-join via broadcast — hide the code, show a friendlier msg.
+    const isRematchWait = session.mode === "rejoin";
     return (
       <GameShell onAbort={doAbort}>
-        <StatusBar text="Waiting For Opponent" tone="cyan" />
-        {game.room_code && (
+        <StatusBar text={isRematchWait ? "Starting Rematch" : "Waiting For Opponent"} tone="cyan" />
+        {!isRematchWait && game.room_code && (
           <div className="mt-6 text-center">
             <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Room Code</p>
             <button
@@ -267,10 +301,12 @@ function OnlineGameInner({ mode, config, onExit, onReplay }: Props & { onReplay:
             <p className="mt-3 text-sm text-muted-foreground">Share this code with a friend to start.</p>
           </div>
         )}
-        {!game.room_code && (
+        {(isRematchWait || !game.room_code) && (
           <div className="my-8 text-center">
             <div className="w-12 h-12 mx-auto rounded-full border-2 border-[color:var(--neon-magenta)] border-t-transparent animate-spin" />
-            <p className="mt-4 text-sm text-muted-foreground">Searching the neon grid...</p>
+            <p className="mt-4 text-sm text-muted-foreground">
+              {isRematchWait ? "Reconnecting with your opponent..." : "Searching the neon grid..."}
+            </p>
           </div>
         )}
         <div className="mt-6 text-center text-xs text-muted-foreground">You are playing as <span className={myToken==="X"?"neon-text-cyan":"neon-text-magenta"}>{myToken}</span></div>
@@ -315,7 +351,12 @@ function OnlineGameInner({ mode, config, onExit, onReplay }: Props & { onReplay:
               text={won ? "Victory" : lost ? "Defeat" : drawn ? "Draw" : "Match Over"}
               tone={won ? (myToken === "X" ? "cyan" : "magenta") : lost ? "magenta" : "muted"}
               onExit={onExit}
-              onReplay={onReplay}
+              onReplay={requestRematch}
+              rematchState={{
+                iWant: rematch.iWant,
+                theyWant: rematch.theyWant,
+                pending: !!nextGameId,
+              }}
             />
           )}
         </AnimatePresence>
@@ -323,3 +364,4 @@ function OnlineGameInner({ mode, config, onExit, onReplay }: Props & { onReplay:
     </GameShell>
   );
 }
+
