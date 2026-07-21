@@ -69,7 +69,7 @@ function Index() {
               exit={{ opacity: 0, y: 12, scale: 0.95 }}
               className="glass-panel rounded-lg px-4 py-3 text-sm font-medium text-foreground shadow-lg"
             >
-              Created by Ron Mathew
+              Created by Ron Mathew using Lovable 
             </motion.div>
           )}
         </AnimatePresence>
