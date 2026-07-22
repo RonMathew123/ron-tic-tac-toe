@@ -18,3 +18,4 @@ Choose your protocol. All online matches sync in real time:
 
 * **Visual Theme:** Cyan and magenta high-contrast Neon Cyberpunk grid aesthetic.
 * **Built With:** Developed using modern rapid prototyping on Lovable.
+Play Ron Tic Tac Toe Live: https://ron-tic-tac-toe.lovable.app
